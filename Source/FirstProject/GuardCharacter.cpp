@@ -10,9 +10,13 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Weapon.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimInstance.h"
+#include "Sound/SoundCue.h"
+#include "Enemy.h"
+#include "MainPlayerController.h"
 
 // Sets default values
 AGuardCharacter::AGuardCharacter()
@@ -56,9 +60,9 @@ AGuardCharacter::AGuardCharacter()
 	GetCharacterMovement()->AirControl = 0.2f;
 
 	// Player stats
-	Health = 65.f;
+	Health = 100.f;
 	MaxHealth = 100.f;
-	Stamina = 120.f;
+	Stamina = 150.f;
 	MaxStamina = 150.f;
 	Coins = 0;
 
@@ -74,18 +78,30 @@ AGuardCharacter::AGuardCharacter()
 
 	StaminaDrainRate = 25.f;
 	MinSprintStamina = 50.f;
+
+	InterpSpeed = 15.f;
+	bInterpToEnemy = false;
+
+	bHasCombatTarget = false;
 }
 
 // Called when the game starts or when spawned
 void AGuardCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	MainPlayerController = Cast<AMainPlayerController>(GetController());
 }
 
 // Called every frame
 void AGuardCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (MovementStatus == EMovementStatus::EMS_Dead) 
+	{
+		return;
+	}
 
 	float DeltaStamina = StaminaDrainRate * DeltaTime;
 
@@ -170,6 +186,24 @@ void AGuardCharacter::Tick(float DeltaTime)
 		default:
 			;
 	}
+
+	if (bInterpToEnemy && CombatTarget)
+	{
+		FRotator LookAtYaw = GetLookAtRotationYaw(CombatTarget->GetActorLocation());
+		FRotator InterpRotation = FMath::RInterpTo(GetActorRotation(), LookAtYaw, DeltaTime, InterpSpeed);
+
+		SetActorRotation(InterpRotation);
+	}
+
+	if (CombatTarget)
+	{
+		CombatTargetLocation = CombatTarget->GetActorLocation();
+
+		if (MainPlayerController)
+		{
+			MainPlayerController->EnemyLocation = CombatTargetLocation;
+		}
+	}
 }
 
 // Called to bind functionality to input
@@ -179,7 +213,7 @@ void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
 	check(PlayerInputComponent);
 
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AGuardCharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
 
@@ -201,7 +235,7 @@ void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
 void AGuardCharacter::MoveForward(float Value)
 {
-	if (Controller != nullptr && Value != 0.0f && !bAttacking)
+	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		// Find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -215,7 +249,7 @@ void AGuardCharacter::MoveForward(float Value)
  
 void AGuardCharacter::MoveRight(float Value)
 {
-	if (Controller != nullptr && Value != 0.0f && !bAttacking)
+	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		// Find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -242,6 +276,11 @@ void AGuardCharacter::LMBDown()
 {
 	bLMBDown = true;
 
+	if (MovementStatus == EMovementStatus::EMS_Dead)
+	{
+		return;
+	}
+
 	if (ActiveOverlappingItem)
 	{
 		AWeapon* Weapon = Cast<AWeapon>(ActiveOverlappingItem);
@@ -264,15 +303,28 @@ void AGuardCharacter::LMBUp()
 
 void AGuardCharacter::Attack()
 {
-	if (!bAttacking)
+	if (!bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		bAttacking = true;
+		SetInterpToEnemy(true);
 		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 
 		if (AnimInstance && CombatMontage)
 		{
-			AnimInstance->Montage_Play(CombatMontage, 1.35f);
-			AnimInstance->Montage_JumpToSection(FName("Attack_1"), CombatMontage);
+			int32 Section = FMath::RandRange(0, 1);
+			switch (Section)
+			{
+			case 0:
+				AnimInstance->Montage_Play(CombatMontage, 2.f);
+				AnimInstance->Montage_JumpToSection(FName("Attack_1"), CombatMontage);
+				break;
+			case 1:
+				AnimInstance->Montage_Play(CombatMontage, 1.8f);
+				AnimInstance->Montage_JumpToSection(FName("Attack_2"), CombatMontage);
+				break;
+			default:
+				break;
+			}
 		}
 	}
 }
@@ -280,10 +332,25 @@ void AGuardCharacter::Attack()
 void AGuardCharacter::AttackEnd()
 {
 	bAttacking = false;
+	SetInterpToEnemy(false);
 	if (bLMBDown)
 	{
 		Attack();
 	}
+}
+
+void AGuardCharacter::PlaySwingSound()
+{
+	if (EquippedWeapon->SwingSound)
+	{
+		UGameplayStatics::PlaySound2D(this, EquippedWeapon->SwingSound);
+	}
+}
+
+void AGuardCharacter::DeathEnd()
+{
+	GetMesh()->bPauseAnims = true;
+	GetMesh()->bNoSkeletonUpdate = true;
 }
 
 void AGuardCharacter::DecrementHealth(float Amount)
@@ -295,14 +362,52 @@ void AGuardCharacter::DecrementHealth(float Amount)
 	}
 }
 
+float AGuardCharacter::TakeDamage(float DamageAmount, FDamageEvent const & DamageEvent, AController * EventInstigator, AActor * DamageCauser)
+{
+	DecrementHealth(DamageAmount);
+
+	return DamageAmount;
+}
+
 void AGuardCharacter::Die()
 {
+	if (MovementStatus != EMovementStatus::EMS_Dead)
+	{
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 
+		if (AnimInstance && CombatMontage)
+		{
+			AnimInstance->Montage_Play(CombatMontage, 1.0f);
+			AnimInstance->Montage_JumpToSection(FName("Death"));
+		}
+
+		SetMovementStatus(EMovementStatus::EMS_Dead);
+	}
+}
+
+void AGuardCharacter::Jump()
+{
+	if (MovementStatus != EMovementStatus::EMS_Dead)
+	{
+		Super::Jump();
+	}
 }
 
 void AGuardCharacter::IncrementCoins(int32 Amount)
 {
 	Coins += Amount;
+}
+
+void AGuardCharacter::SetInterpToEnemy(bool Interp)
+{
+	bInterpToEnemy = Interp;
+}
+
+FRotator AGuardCharacter::GetLookAtRotationYaw(FVector Target)
+{
+	FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target);
+	FRotator LookAtRotationYaw(0.f, LookAtRotation.Yaw, 0.f);
+	return LookAtRotationYaw;
 }
 
 void AGuardCharacter::SetMovementStatus(EMovementStatus Status)

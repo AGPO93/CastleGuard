@@ -11,6 +11,7 @@ enum class EMovementStatus : uint8
 {
 	EMS_Normal UMETA(DisplayName = "Normal"),
 	EMS_Sprinting UMETA(DisplayName = "Sprinting"),
+	EMS_Dead UMETA(DisplayName = "Dead"),
 
 	EMS_MAX UMETA(DisplayName = "DefaultMAX")
 };
@@ -35,6 +36,23 @@ public:
 	// Sets default values for this character's properties
 	AGuardCharacter();
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	bool bHasCombatTarget;
+
+	FORCEINLINE void SetHasCombatTarget(bool HasTarget) { bHasCombatTarget = HasTarget; }
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Combat")
+	FVector CombatTargetLocation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Controller")
+	class AMainPlayerController* MainPlayerController;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	class UParticleSystem* HitParticles;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	class USoundCue* HitSound;
+
 	TArray<FVector> PickupLocations;
 
 	UFUNCTION(BlueprintCallable)
@@ -53,6 +71,17 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MinSprintStamina;
+
+	float InterpSpeed;
+	bool bInterpToEnemy;
+	void SetInterpToEnemy(bool Interp);	
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat")
+	class AEnemy* CombatTarget;
+
+	FORCEINLINE void SetCombatTarget(AEnemy* Target) { CombatTarget = Target; }
+
+	FRotator GetLookAtRotationYaw(FVector Target);
 
 	// Set movement status and speed
 	void SetMovementStatus(EMovementStatus Status);
@@ -95,7 +124,13 @@ public:
 	int32 Coins;
 
 	void DecrementHealth(float Amount);
+
+	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const & DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+
 	void Die();
+
+	virtual void Jump() override;
+
 	void IncrementCoins(int32 Amount);
 
 protected:
@@ -152,4 +187,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Anims")
 	class UAnimMontage* CombatMontage;
+
+	UFUNCTION(BlueprintCallable)
+	void PlaySwingSound();
+
+	UFUNCTION(BlueprintCallable)
+	void DeathEnd();
 };
