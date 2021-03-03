@@ -6,7 +6,6 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
-//#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -65,24 +64,22 @@ AGuardCharacter::AGuardCharacter()
 	Stamina = 150.f;
 	MaxStamina = 150.f;
 	Coins = 0;
-
 	RunningSpeed = 650.f;
 	SprintingSpeed = 950.f;
-	bShiftKeyDown = false;
-
-	bLMBDown = false;
+	StaminaDrainRate = 25.f;
+	MinSprintStamina = 50.f;
+	InterpSpeed = 15.f;
 
 	//Initialise Enums
 	MovementStatus = EMovementStatus::EMS_Normal;
 	StaminaStatus = EStaminaStatus::ESS_Normal;
 
-	StaminaDrainRate = 25.f;
-	MinSprintStamina = 50.f;
-
-	InterpSpeed = 15.f;
 	bInterpToEnemy = false;
-
 	bHasCombatTarget = false;
+	bMovingForward = false;
+	bMovingRight = false;
+	bShiftKeyDown = false;
+	bLMBDown = false;
 }
 
 // Called when the game starts or when spawned
@@ -98,112 +95,16 @@ void AGuardCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// If dead, don't update other elements.
 	if (MovementStatus == EMovementStatus::EMS_Dead) 
 	{
 		return;
 	}
 
 	float DeltaStamina = StaminaDrainRate * DeltaTime;
-
-	switch (StaminaStatus)
-	{
-		case EStaminaStatus::ESS_Normal:
-			if (bShiftKeyDown)
-			{
-				if (Stamina - DeltaStamina <= MinSprintStamina)
-				{
-					SetStaminaStatus(EStaminaStatus::ESS_BelowMinimum);
-				}
-				Stamina -= DeltaStamina;
-				SetMovementStatus(EMovementStatus::EMS_Sprinting);
-			}
-			else
-			{
-				if (Stamina + DeltaStamina >= MaxStamina)
-				{
-					Stamina = MaxStamina;
-				}
-				else
-				{
-					Stamina += DeltaStamina;
-				}
-				SetMovementStatus(EMovementStatus::EMS_Normal);
-			}
-
-			break;
-
-		case EStaminaStatus::ESS_BelowMinimum:
-			if (bShiftKeyDown)
-			{
-				if (Stamina - DeltaStamina <= 0.f)
-				{
-					SetStaminaStatus(EStaminaStatus::ESS_Exhausted);
-					SetMovementStatus(EMovementStatus::EMS_Normal);
-					Stamina = 0;
-				}
-				else
-				{
-					Stamina -= DeltaStamina;
-					SetMovementStatus(EMovementStatus::EMS_Sprinting);
-				}
-			}
-			else
-			{
-				if (Stamina + DeltaStamina >= MinSprintStamina)
-				{
-					SetStaminaStatus(EStaminaStatus::ESS_Normal);
-				}
-				Stamina += DeltaStamina;
-				SetMovementStatus(EMovementStatus::EMS_Normal);
-			}
-
-			break;
-
-		case EStaminaStatus::ESS_Exhausted:
-			if (bShiftKeyDown)
-			{
-				Stamina = 0.0f;
-			}
-			else
-			{
-				SetStaminaStatus(EStaminaStatus::ESS_ExhaustedRecovering);
-				Stamina += DeltaStamina;
-			}
-			SetMovementStatus(EMovementStatus::EMS_Normal);
-
-			break;
-
-		case EStaminaStatus::ESS_ExhaustedRecovering:
-			if (Stamina + DeltaStamina >= MinSprintStamina)
-			{
-				SetStaminaStatus(EStaminaStatus::ESS_Normal);
-			}
-			Stamina += DeltaStamina;
-			SetMovementStatus(EMovementStatus::EMS_Normal);
-
-			break;
-
-		default:
-			;
-	}
-
-	if (bInterpToEnemy && CombatTarget)
-	{
-		FRotator LookAtYaw = GetLookAtRotationYaw(CombatTarget->GetActorLocation());
-		FRotator InterpRotation = FMath::RInterpTo(GetActorRotation(), LookAtYaw, DeltaTime, InterpSpeed);
-
-		SetActorRotation(InterpRotation);
-	}
-
-	if (CombatTarget)
-	{
-		CombatTargetLocation = CombatTarget->GetActorLocation();
-
-		if (MainPlayerController)
-		{
-			MainPlayerController->EnemyLocation = CombatTargetLocation;
-		}
-	}
+	DrainStamina(DeltaStamina);
+	InterpToEnemy(DeltaTime);
+	UpdateCombatTargetLocation();
 }
 
 // Called to bind functionality to input
@@ -235,6 +136,8 @@ void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 
 void AGuardCharacter::MoveForward(float Value)
 {
+	bMovingForward = false;
+
 	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		// Find out which way is forward
@@ -244,11 +147,15 @@ void AGuardCharacter::MoveForward(float Value)
 		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 
 		AddMovementInput(Direction, Value);
+
+		bMovingForward = true;
 	}
 }
  
 void AGuardCharacter::MoveRight(float Value)
 {
+	bMovingRight = false;
+
 	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		// Find out which way is forward
@@ -258,20 +165,28 @@ void AGuardCharacter::MoveRight(float Value)
 		const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
 		AddMovementInput(Direction, Value);
+
+		bMovingRight = true;
 	}
 }
 
+/** Called via input to turn at given rate
+* @param Rate This is a normalized rate, i.e. 1.0 means 100% of the desired turn rate
+*/
 void AGuardCharacter::TurnAtRate(float Rate)
 {
-	// Can get deltatime like this when outside of a tick function
 	AddControllerYawInput(Rate * BaseTurnRate * GetWorld()->GetDeltaSeconds());
 }
 
+/** Called via input to look up/down at given rate
+* @param Rate This is a normalized rate, i.e. 1.0 means 100% of the desired look up/down rate
+*/
 void AGuardCharacter::LookUpAtRate(float Rate)
 {
 	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
 }
 
+// Equipping weapon and attacking.
 void AGuardCharacter::LMBDown()
 {
 	bLMBDown = true;
@@ -329,6 +244,7 @@ void AGuardCharacter::Attack()
 	}
 }
 
+// Reset bools, attack again if necessary.
 void AGuardCharacter::AttackEnd()
 {
 	bAttacking = false;
@@ -347,26 +263,213 @@ void AGuardCharacter::PlaySwingSound()
 	}
 }
 
+// Stop animations after death.
 void AGuardCharacter::DeathEnd()
 {
 	GetMesh()->bPauseAnims = true;
 	GetMesh()->bNoSkeletonUpdate = true;
 }
 
+void AGuardCharacter::DrainStamina(float DeltaStamina)
+{
+	switch (StaminaStatus)
+	{
+	case EStaminaStatus::ESS_Normal:
+		if (bShiftKeyDown && (bMovingForward || bMovingRight))
+		{
+			if (Stamina - DeltaStamina <= MinSprintStamina)
+			{
+				SetStaminaStatus(EStaminaStatus::ESS_BelowMinimum);
+			}
+
+			Stamina -= DeltaStamina;
+			SetMovementStatus(EMovementStatus::EMS_Sprinting);
+		}
+		else
+		{
+			if (Stamina + DeltaStamina >= MaxStamina)
+			{
+				Stamina = MaxStamina;
+			}
+			else
+			{
+				Stamina += DeltaStamina;
+			}
+
+			SetMovementStatus(EMovementStatus::EMS_Normal);
+		}
+
+		break;
+
+	case EStaminaStatus::ESS_BelowMinimum:
+		if (bShiftKeyDown && (bMovingForward || bMovingRight))
+		{
+			if (Stamina - DeltaStamina <= 0.f)
+			{
+				SetStaminaStatus(EStaminaStatus::ESS_Exhausted);
+				SetMovementStatus(EMovementStatus::EMS_Normal);
+				Stamina = 0;
+			}
+			else
+			{
+
+				Stamina -= DeltaStamina;
+				SetMovementStatus(EMovementStatus::EMS_Sprinting);
+			}
+		}
+		else
+		{
+			if (Stamina + DeltaStamina >= MinSprintStamina)
+			{
+				SetStaminaStatus(EStaminaStatus::ESS_Normal);
+			}
+
+			Stamina += DeltaStamina;
+			SetMovementStatus(EMovementStatus::EMS_Normal);
+		}
+
+		break;
+
+	case EStaminaStatus::ESS_Exhausted:
+		if (bShiftKeyDown)
+		{
+			Stamina = 0.0f;
+		}
+		else
+		{
+			SetStaminaStatus(EStaminaStatus::ESS_ExhaustedRecovering);
+			Stamina += DeltaStamina;
+		}
+
+		SetMovementStatus(EMovementStatus::EMS_Normal);
+
+		break;
+
+	case EStaminaStatus::ESS_ExhaustedRecovering:
+		if (Stamina + DeltaStamina >= MinSprintStamina)
+		{
+			SetStaminaStatus(EStaminaStatus::ESS_Normal);
+		}
+
+		Stamina += DeltaStamina;
+		SetMovementStatus(EMovementStatus::EMS_Normal);
+
+		break;
+
+	default:
+		;
+	}
+}
+
+// Update location of combat target for enemy healthbar.
+void AGuardCharacter::UpdateCombatTargetLocation()
+{
+	if (CombatTarget)
+	{
+		CombatTargetLocation = CombatTarget->GetActorLocation();
+
+		if (MainPlayerController)
+		{
+			MainPlayerController->EnemyLocation = CombatTargetLocation;
+		}
+	}
+}
+
+// Automatically rotates player to face enemy when close enough to engage in combat.
+void AGuardCharacter::InterpToEnemy(float DeltaTime)
+{
+	if (bInterpToEnemy && CombatTarget)
+	{
+		FRotator LookAtYaw = GetLookAtRotationYaw(CombatTarget->GetActorLocation());
+		FRotator InterpRotation = FMath::RInterpTo(GetActorRotation(), LookAtYaw, DeltaTime, InterpSpeed);
+
+		SetActorRotation(InterpRotation);
+	}
+}
+
 void AGuardCharacter::DecrementHealth(float Amount)
 {
 	Health -= Amount;
-	if (Health - Amount <= 0.f)
-	{
-		Die();
-	}
 }
 
 float AGuardCharacter::TakeDamage(float DamageAmount, FDamageEvent const & DamageEvent, AController * EventInstigator, AActor * DamageCauser)
 {
+	if (Health - DamageAmount <= 0.f)
+	{
+		Health = 0;
+		Die();
+
+		if (DamageCauser)
+		{
+			AEnemy* Enemy = Cast<AEnemy>(DamageCauser);
+
+			if (Enemy)
+			{
+				Enemy->bHasValidTarget = false;
+			}
+		}
+	}
+	else
+	{
+		Health -= DamageAmount;
+	}
+
 	DecrementHealth(DamageAmount);
 
 	return DamageAmount;
+}
+
+// Gets the enemy closest to the player and assigns it as the combat target.
+void AGuardCharacter::UpdateCombatTarget()
+{
+	TArray<AActor*> OverlappingActors;
+	TSubclassOf<AEnemy> ClassFilter;
+	GetOverlappingActors(OverlappingActors, AEnemy::StaticClass());
+
+	if (OverlappingActors.Num() > 0)
+	{
+		AEnemy* ClosestEnemy = Cast<AEnemy>(OverlappingActors[0]);
+
+		if (ClosestEnemy)
+		{
+			FVector PlayerLocation = GetActorLocation();
+			float MinDistance = (ClosestEnemy->GetActorLocation() - PlayerLocation).Size();
+
+			for (auto Actor : OverlappingActors)
+			{
+				AEnemy* Enemy = Cast<AEnemy>(Actor);
+
+				if (Enemy)
+				{
+					float DistanceToEnemy = (Enemy->GetActorLocation() - PlayerLocation).Size();
+
+					if (DistanceToEnemy < MinDistance)
+					{
+						MinDistance = DistanceToEnemy;
+						ClosestEnemy = Enemy;
+					}
+				}
+			}
+
+			SetCombatTarget(ClosestEnemy);
+
+			if (MainPlayerController)
+			{
+				MainPlayerController->DisplayEnemyHealthBar();
+			}
+
+			//SetCombatTarget(ClosestEnemy);
+			bHasCombatTarget = true;
+		}
+	}
+	else
+	{
+		if (MainPlayerController)
+		{
+			MainPlayerController->RemoveEnemtHealthBar();
+		}
+	}
+
 }
 
 void AGuardCharacter::Die()
@@ -434,10 +537,10 @@ void AGuardCharacter::ShiftKeyUp()
 	bShiftKeyDown = false;	
 }
 
-void AGuardCharacter::ShowPickupLocations()
-{
-	for (int32 i = 0; i < PickupLocations.Num(); i++)
-	{
-		UKismetSystemLibrary::DrawDebugSphere(this, PickupLocations[i] + FVector(0.f, 0.f, 75.f), 25.f, 12, FLinearColor::Green, 5.f, 0.5f);
-	}
-}
+//void AGuardCharacter::ShowPickupLocations()
+//{
+//	for (int32 i = 0; i < PickupLocations.Num(); i++)
+//	{
+//		UKismetSystemLibrary::DrawDebugSphere(this, PickupLocations[i] + FVector(0.f, 0.f, 75.f), 25.f, 12, FLinearColor::Green, 5.f, 0.5f);
+//	}
+//}
