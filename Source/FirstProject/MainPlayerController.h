@@ -15,6 +15,8 @@ class FIRSTPROJECT_API AMainPlayerController : public APlayerController
 	GENERATED_BODY()
 	
 public:
+	
+	AMainPlayerController();
 
 	// Reference to the UMG asset in the editor
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Widgets")
@@ -30,7 +32,20 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Widgets")
 	UUserWidget* EnemyHealthBar;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Widgets")
+	TSubclassOf<UUserWidget> WPauseMenu;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Widgets")
+	UUserWidget* PauseMenu;
+
+	bool bPauseMenuVisible;
 	bool bEnemyHealthBarVisible;
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "HUD")
+	void DisplayPauseMenu();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "HUD")
+	void RemovePauseMenu();
+	void TogglePauseMenu();
 
 	void DisplayEnemyHealthBar();
 	void RemoveEnemtHealthBar();

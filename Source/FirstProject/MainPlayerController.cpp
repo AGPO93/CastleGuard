@@ -4,6 +4,48 @@
 #include "MainPlayerController.h"
 #include "Blueprint/UserWidget.h"
 
+AMainPlayerController::AMainPlayerController()
+{
+	bPauseMenuVisible = false;
+}
+
+void AMainPlayerController::DisplayPauseMenu_Implementation()
+{
+	if (PauseMenu)
+	{
+		bPauseMenuVisible = true;
+		PauseMenu->SetVisibility(ESlateVisibility::Visible);
+
+		FInputModeGameAndUI InputMode;
+		SetInputMode(InputMode);
+		bShowMouseCursor = true;
+	}
+}
+
+void AMainPlayerController::RemovePauseMenu_Implementation()
+{
+	if (PauseMenu)
+	{
+		bPauseMenuVisible = false;
+		
+		FInputModeGameOnly InputMode;
+		SetInputMode(InputMode);
+		bShowMouseCursor = false;
+	}
+}
+
+void AMainPlayerController::TogglePauseMenu()
+{
+	if (bPauseMenuVisible == true)
+	{
+		RemovePauseMenu();
+	}
+	else
+	{
+		DisplayPauseMenu();
+	}
+}
+
 void AMainPlayerController::DisplayEnemyHealthBar()
 {
 	if (EnemyHealthBar)
@@ -45,6 +87,17 @@ void AMainPlayerController::BeginPlay()
 		}
 
 		EnemyHealthBar->SetAlignmentInViewport(FVector2D(0.f, 0.f));
+	}
+
+	if (WPauseMenu)
+	{
+		PauseMenu = CreateWidget<UUserWidget>(this, WPauseMenu);
+
+		if (PauseMenu)
+		{
+			PauseMenu->AddToViewport();
+			PauseMenu->SetVisibility(ESlateVisibility::Hidden);
+		}
 	}
 }
 

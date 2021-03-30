@@ -16,6 +16,10 @@
 #include "Sound/SoundCue.h"
 #include "Enemy.h"
 #include "MainPlayerController.h"
+#include "FirstSaveGame.h"
+#include "ItemStorage.h"
+#include "FirstSaveGame.h"
+#include "CustomGameInstance.h"
 
 // Sets default values
 AGuardCharacter::AGuardCharacter()
@@ -80,6 +84,7 @@ AGuardCharacter::AGuardCharacter()
 	bMovingRight = false;
 	bShiftKeyDown = false;
 	bLMBDown = false;
+	bESCDown = false;
 }
 
 // Called when the game starts or when spawned
@@ -88,6 +93,58 @@ void AGuardCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	MainPlayerController = Cast<AMainPlayerController>(GetController());
+
+	if (MainPlayerController)
+	{
+		FInputModeGameOnly InputMode;
+		MainPlayerController->SetInputMode(InputMode);
+	}
+
+	UCustomGameInstance* GameInstance = Cast<UCustomGameInstance>(GetGameInstance());
+
+	if (GameInstance && GameInstance->bSetPlayerData)
+	{
+		GameInstance->SetPlayerData();
+	}
+}
+
+void AGuardCharacter::LoadPos()
+{
+	//UCustomGameInstance* GameInstance = Cast<UCustomGameInstance>(GetGameInstance());
+	//if (GameInstance)
+	//{
+	//	UFirstSaveGame* LoadGameInstance = GameInstance->LoadData;
+
+	//	Health = LoadGameInstance->PlayerStats.Health;
+	//	MaxHealth = LoadGameInstance->PlayerStats.MaxHealth;
+	//	Stamina = LoadGameInstance->PlayerStats.Stamina;
+	//	MaxStamina = LoadGameInstance->PlayerStats.MaxStamina;
+	//	Coins = LoadGameInstance->PlayerStats.Coins;
+
+	//	if (WeaponStorage)
+	//	{
+	//		AItemStorage* Weapons = GetWorld()->SpawnActor<AItemStorage>(WeaponStorage);
+
+	//		if (Weapons)
+	//		{
+	//			FString WeaponName = LoadGameInstance->PlayerStats.WeaponName;
+	//			//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::White, WeaponName + " LoadPos");
+
+	//			if (Weapons->WeaponMap.Contains(WeaponName))
+	//			{
+	//				AWeapon* WeaponToSpawn = GetWorld()->SpawnActor<AWeapon>(Weapons->WeaponMap[WeaponName]);
+	//				WeaponToSpawn->Equip(this);
+	//			}
+	//		}
+	//	}
+
+	//	SetActorLocation(LoadGameInstance->PlayerStats.Location);
+	//	SetActorRotation(LoadGameInstance->PlayerStats.Rotation);
+
+	//	SetMovementStatus(EMovementStatus::EMS_Normal);
+
+	//	GetMesh()->bPauseAnims = false;
+	//}
 }
 
 // Called every frame
@@ -107,6 +164,150 @@ void AGuardCharacter::Tick(float DeltaTime)
 	UpdateCombatTargetLocation();
 }
 
+void AGuardCharacter::SwitchLevel(FName LevelName)
+{
+	UWorld* World = GetWorld();
+
+	if (World)
+	{
+		FString CurrentLevel = World->GetMapName();
+		FName CurrentLevelName(*CurrentLevel);
+
+		if (CurrentLevelName != LevelName)
+		{
+			UGameplayStatics::OpenLevel(World, LevelName);
+		}
+	}
+}
+
+void AGuardCharacter::SaveGame()
+{
+	UCustomGameInstance* GameInstance = Cast<UCustomGameInstance>(GetGameInstance());
+	if (GameInstance)
+	{
+
+	}
+
+	//UFirstSaveGame* SaveGameInstance = Cast<UFirstSaveGame>(UGameplayStatics::CreateSaveGameObject(UFirstSaveGame::StaticClass()));
+
+	//SaveGameInstance->PlayerStats.Health = Health;
+	//SaveGameInstance->PlayerStats.MaxHealth = MaxHealth;
+	//SaveGameInstance->PlayerStats.Stamina = Stamina;
+	//SaveGameInstance->PlayerStats.MaxStamina = MaxStamina;
+	//SaveGameInstance->PlayerStats.Coins = Coins;
+	//SaveGameInstance->PlayerStats.Location = GetActorLocation();
+	//SaveGameInstance->PlayerStats.Rotation = GetActorRotation();
+
+	//FString MapName = GetWorld()->GetMapName();
+	//MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+	//SaveGameInstance->PlayerStats.MapName = MapName;
+
+	//if (EquippedWeapon)
+	//{
+	//	SaveGameInstance->PlayerStats.WeaponName = EquippedWeapon->Name;
+	//}
+
+	//UGameplayStatics::SaveGameToSlot(SaveGameInstance, SaveGameInstance->SlotName, SaveGameInstance->SlotIndex);
+	//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::White, TEXT("GAME SAVED"));
+
+	//// Save to game instance
+	//UCustomGameInstance* GameInstance = Cast<UCustomGameInstance>(GetGameInstance());
+	//if (GameInstance) 
+	//{
+	//	GameInstance->LoadData = SaveGameInstance;
+	//	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, GameInstance->LoadData->PlayerStats.WeaponName + " SaveGame");
+	//}
+}
+
+void AGuardCharacter::LoadGame(bool SetPosition)
+{
+	//UCustomGameInstance* GameInstance = Cast<UCustomGameInstance>(GetGameInstance());
+	//if (GameInstance)
+	//{
+	//	UFirstSaveGame* LoadGameInstance = GameInstance->LoadData;
+	//	//UFirstSaveGame* LoadData = Cast<UFirstSaveGame>(UGameplayStatics::CreateSaveGameObject(UFirstSaveGame::StaticClass()));
+	//	LoadGameInstance = Cast<UFirstSaveGame>(UGameplayStatics::LoadGameFromSlot(LoadGameInstance->SlotName, LoadGameInstance->SlotIndex));
+
+	//	FString MapToLoad = LoadGameInstance->PlayerStats.MapName;
+	//	FString CurrentMap = GetWorld()->GetMapName();
+	//	CurrentMap.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+
+	//	if (MapToLoad != CurrentMap && MapToLoad != TEXT(""))
+	//	{
+	//		GameInstance->bShouldLoad = true;
+	//		FName MapName(LoadGameInstance->PlayerStats.MapName);
+	//		SwitchLevel(MapName);
+	//	}
+
+	//	Health = LoadGameInstance->PlayerStats.Health;
+	//	MaxHealth = LoadGameInstance->PlayerStats.MaxHealth;
+	//	Stamina = LoadGameInstance->PlayerStats.Stamina;
+	//	MaxStamina = LoadGameInstance->PlayerStats.MaxStamina;
+	//	Coins = LoadGameInstance->PlayerStats.Coins;
+
+	//	if (WeaponStorage)
+	//	{
+	//		AItemStorage* Weapons = GetWorld()->SpawnActor<AItemStorage>(WeaponStorage);
+
+	//		if (Weapons)
+	//		{
+	//			FString WeaponName = LoadGameInstance->PlayerStats.WeaponName;
+	//			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, WeaponName + " LoadGame");
+
+	//			if (Weapons->WeaponMap.Contains(WeaponName))
+	//			{
+	//				AWeapon* WeaponToSpawn = GetWorld()->SpawnActor<AWeapon>(Weapons->WeaponMap[WeaponName]);
+	//				WeaponToSpawn->Equip(this);
+	//			}
+	//		}
+	//	}
+
+	//	if (SetPosition)
+	//	{
+	//		SetActorLocation(LoadGameInstance->PlayerStats.Location);
+	//		SetActorRotation(LoadGameInstance->PlayerStats.Rotation);
+	//	}
+
+	//	SetMovementStatus(EMovementStatus::EMS_Normal);
+
+	//	GetMesh()->bPauseAnims = false;
+	//	GetMesh()->bNoSkeletonUpdate = false;
+	//}
+}
+
+void AGuardCharacter::LoadGameNoSwitch()
+{
+	/*UFirstSaveGame* LoadGameInstance = Cast<UFirstSaveGame>(UGameplayStatics::CreateSaveGameObject(UFirstSaveGame::StaticClass()));
+	LoadGameInstance = Cast<UFirstSaveGame>(UGameplayStatics::LoadGameFromSlot(LoadGameInstance->SlotName, LoadGameInstance->SlotIndex));
+
+	Health = LoadGameInstance->PlayerStats.Health;
+	MaxHealth = LoadGameInstance->PlayerStats.MaxHealth;
+	Stamina = LoadGameInstance->PlayerStats.Stamina;
+	MaxStamina = LoadGameInstance->PlayerStats.MaxStamina;
+	Coins = LoadGameInstance->PlayerStats.Coins;
+
+	if (WeaponStorage)
+	{
+		AItemStorage* Weapons = GetWorld()->SpawnActor<AItemStorage>(WeaponStorage);
+
+		if (Weapons)
+		{
+			FString WeaponName = LoadGameInstance->PlayerStats.WeaponName;
+
+			if (Weapons->WeaponMap.Contains(WeaponName))
+			{
+				AWeapon* WeaponToSpawn = GetWorld()->SpawnActor<AWeapon>(Weapons->WeaponMap[WeaponName]);
+				WeaponToSpawn->Equip(this);
+			}
+		}
+	}
+
+	SetMovementStatus(EMovementStatus::EMS_Normal);
+
+	GetMesh()->bPauseAnims = false;
+	GetMesh()->bNoSkeletonUpdate = false;*/
+}
+
 // Called to bind functionality to input
 void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -117,9 +318,11 @@ void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AGuardCharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 
-
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AGuardCharacter::ShiftKeyDown);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AGuardCharacter::ShiftKeyUp);
+
+	PlayerInputComponent->BindAction("ESC", IE_Pressed, this, &AGuardCharacter::ESCDown);
+	PlayerInputComponent->BindAction("ESC", IE_Released, this, &AGuardCharacter::ESCUp);
 
 	PlayerInputComponent->BindAction("LMB", IE_Pressed, this, &AGuardCharacter::LMBDown);
 	PlayerInputComponent->BindAction("LMB", IE_Released, this, &AGuardCharacter::LMBUp);
@@ -127,8 +330,8 @@ void AGuardCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAxis("MoveForward", this, &AGuardCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AGuardCharacter::MoveRight);
 
-	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
-	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+	PlayerInputComponent->BindAxis("Turn", this, &AGuardCharacter::Turn);
+	PlayerInputComponent->BindAxis("LookUp", this, &AGuardCharacter::LookUp);
 
 	PlayerInputComponent->BindAxis("TurnRate", this, &AGuardCharacter::TurnAtRate);
 	PlayerInputComponent->BindAxis("LookUpRate", this, &AGuardCharacter::LookUpAtRate);
@@ -138,7 +341,7 @@ void AGuardCharacter::MoveForward(float Value)
 {
 	bMovingForward = false;
 
-	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
+	if (CanMove(Value))
 	{
 		// Find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -156,7 +359,7 @@ void AGuardCharacter::MoveRight(float Value)
 {
 	bMovingRight = false;
 
-	if (Controller != nullptr && Value != 0.0f && !bAttacking && MovementStatus != EMovementStatus::EMS_Dead)
+	if (CanMove(Value))
 	{
 		// Find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
@@ -167,6 +370,15 @@ void AGuardCharacter::MoveRight(float Value)
 		AddMovementInput(Direction, Value);
 
 		bMovingRight = true;
+	}
+}
+
+// Yaw Rotation
+void AGuardCharacter::Turn(float Value)
+{
+	if (CanMove(Value))
+	{
+		AddControllerYawInput(Value);
 	}
 }
 
@@ -196,13 +408,17 @@ void AGuardCharacter::LMBDown()
 		return;
 	}
 
+	if (MainPlayerController)
+	{
+		if (MainPlayerController->bPauseMenuVisible) return;
+	}
+
 	if (ActiveOverlappingItem)
 	{
 		AWeapon* Weapon = Cast<AWeapon>(ActiveOverlappingItem);
 		if (Weapon)
 		{
 			Weapon->Equip(this);
-			SetActiveOverlappingItem(nullptr);
 		}
 	}
 	else if (EquippedWeapon)
@@ -214,6 +430,21 @@ void AGuardCharacter::LMBDown()
 void AGuardCharacter::LMBUp()
 {
 	bLMBDown = false;
+}
+
+void AGuardCharacter::ESCDown()
+{
+	bESCDown = true;
+
+	if (MainPlayerController)
+	{
+		MainPlayerController->TogglePauseMenu();
+	}
+}
+
+void AGuardCharacter::ESCUp()
+{
+	bESCDown = false;
 }
 
 void AGuardCharacter::Attack()
@@ -361,6 +592,20 @@ void AGuardCharacter::DrainStamina(float DeltaStamina)
 	}
 }
 
+bool AGuardCharacter::CanMove(float AxisValue)
+{
+	if (MainPlayerController)
+	{
+		return AxisValue != 0.0f && !bAttacking && 
+			MovementStatus != EMovementStatus::EMS_Dead && 
+			!MainPlayerController->bPauseMenuVisible;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 // Update location of combat target for enemy healthbar.
 void AGuardCharacter::UpdateCombatTargetLocation()
 {
@@ -490,6 +735,11 @@ void AGuardCharacter::Die()
 
 void AGuardCharacter::Jump()
 {
+	if (MainPlayerController)
+	{
+		if (MainPlayerController->bPauseMenuVisible) return;
+	}
+
 	if (MovementStatus != EMovementStatus::EMS_Dead)
 	{
 		Super::Jump();
@@ -499,6 +749,18 @@ void AGuardCharacter::Jump()
 void AGuardCharacter::IncrementCoins(int32 Amount)
 {
 	Coins += Amount;
+}
+
+void AGuardCharacter::IncrementHealth(float Amount)
+{
+	if ((Health + Amount) >= MaxHealth)
+	{
+		Health = MaxHealth;
+	}
+	else
+	{
+		Health += Amount;
+	}
 }
 
 void AGuardCharacter::SetInterpToEnemy(bool Interp)
@@ -511,6 +773,15 @@ FRotator AGuardCharacter::GetLookAtRotationYaw(FVector Target)
 	FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target);
 	FRotator LookAtRotationYaw(0.f, LookAtRotation.Yaw, 0.f);
 	return LookAtRotationYaw;
+}
+
+// Pitch rotation
+void AGuardCharacter::LookUp(float Value)
+{
+	if (CanMove(Value))
+	{
+		AddControllerPitchInput(Value);
+	}
 }
 
 void AGuardCharacter::SetMovementStatus(EMovementStatus Status)

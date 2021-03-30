@@ -33,9 +33,11 @@ class FIRSTPROJECT_API AGuardCharacter : public ACharacter
 	GENERATED_BODY()
 
 public:
-
 	// Sets default values for this character's properties
 	AGuardCharacter();
+
+	UFUNCTION(BlueprintCallable)
+	void LoadPos();
 
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -80,7 +82,7 @@ public:
 	FVector CombatTargetLocation;
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Anims")
 	bool bAttacking;
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Items")
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Items")
 	class AWeapon* EquippedWeapon;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	class USoundCue* HitSound;
@@ -106,11 +108,24 @@ public:
 	float BaseLookUpRate;
 
 	// Pickups
+	UFUNCTION(BlueprintCallable)
 	void IncrementCoins(int32 Amount);
+	UFUNCTION(BlueprintCallable)
+	void IncrementHealth(float Amount);
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Items")
 	class AItem* ActiveOverlappingItem;
 	FORCEINLINE void SetActiveOverlappingItem(AItem* ItemToSet) { ActiveOverlappingItem = ItemToSet; }
 	TArray<FVector> PickupLocations;
+
+	// Misc
+	void SwitchLevel(FName LevelName);
+	UFUNCTION(BlueprintCallable)
+	void SaveGame();
+	UFUNCTION(BlueprintCallable)
+	void LoadGame(bool SetPosition);
+	void LoadGameNoSwitch();
+	UPROPERTY(EditDefaultsOnly, Category = "SaveData")
+	TSubclassOf<class AItemStorage> WeaponStorage;
 
 private:
 
@@ -120,14 +135,18 @@ private:
 	// Movement
 	void MoveForward(float Value);
 	void MoveRight(float Value);
+	void Turn(float Value);
+	void LookUp(float Value);
 	void SetMovementStatus(EMovementStatus Status);
 	virtual void Jump() override;
 	void DrainStamina(float DeltaStamina);
+	bool CanMove(float AxisValue);
 	FORCEINLINE void SetStaminaStatus(EStaminaStatus Status) { StaminaStatus = Status; }
 
 	// Controls
 	float InterpSpeed;
 	bool bLMBDown;
+	bool bESCDown;
 	bool bShiftKeyDown;
 	bool bInterpToEnemy;
 	bool bMovingForward;
@@ -137,6 +156,8 @@ private:
 	void ShiftKeyUp();
 	void LMBDown();
 	void LMBUp();
+	void ESCDown();
+	void ESCUp();
 
 	// Camera
 	void TurnAtRate(float Rate);

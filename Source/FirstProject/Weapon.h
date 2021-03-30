@@ -27,6 +27,9 @@ public:
 
 	AWeapon();
 
+	UPROPERTY(EditDefaultsOnly, Category = "SaveData")
+	FString Name;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Item")
 	EWeaponState WeaponState;
 
@@ -57,6 +60,7 @@ public:
 	virtual void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult) override;
 	virtual void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex) override;
 	
+	UFUNCTION(BlueprintCallable)
 	void Equip(class AGuardCharacter* Char);
 
 	FORCEINLINE void SetWeaponState(EWeaponState State) { WeaponState = State; }

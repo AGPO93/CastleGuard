@@ -86,6 +86,13 @@ void AWeapon::Equip(AGuardCharacter* Char)
 		{
 			RightHandSocket->AttachActor(this, Char->GetMesh());
 			bRotate = false;
+
+			// Destroy already equipped weapon before attaching new one.
+			if (Char->EquippedWeapon)
+			{
+				Char->EquippedWeapon->Destroy();
+			}
+
 			Char->SetEquippedWeapon(this);
 			Char->SetActiveOverlappingItem(nullptr);
 		}
@@ -99,6 +106,8 @@ void AWeapon::Equip(AGuardCharacter* Char)
 		{
 			IdleParticlesComponent->Deactivate();
 		}
+
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, Name);
 	}
 }
 
